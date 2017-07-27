@@ -13,7 +13,7 @@ extension CommandLine {
         arguments.removeFirst()
         return arguments
     }
-
+    
     static func open(path: String) throws {
         print("🚀  Opening \(path)...")
         try shellOut(to: "open \(path)")
@@ -23,7 +23,7 @@ extension CommandLine {
 extension Date {
     var today: String {
         let formatter = DateFormatter()
-        formatter.dateStyle = .short
+        formatter.dateFormat = "ddMMyy-HHmm"
         return formatter.string(from: self)
     }
 }
@@ -31,7 +31,7 @@ extension Date {
 extension Playground {
     func apply(_ options: Options) {
         platform = options.platform
-
+        
         if let newCode = options.code {
             code = newCode
         }
@@ -72,20 +72,21 @@ enum Flag: String {
 }
 
 struct Options {
-    var targetPath = "~/Desktop/\(Date().today)"
+    // var targetPath = "~/Desktop/\(Date().today)"
+    var targetPath = "\(Date().today)"
     var platform = Playground.Platform.iOS
     var dependencies = [Folder]()
     var code: String? = nil
     var forceOverwrite = false
     var displayHelp = false
-
+    
     init(arguments: [String] = CommandLine.argumentsExcludingLaunchPath) throws {
         var currentFlag: Flag?
-
+        
         for argument in arguments {
             currentFlag = try parse(argument: argument, for: currentFlag)
         }
-
+        
         if let danglingFlag = currentFlag {
             switch danglingFlag {
             case .targetPath, .platform, .dependencies, .code:
@@ -97,16 +98,16 @@ struct Options {
             }
         }
     }
-
+    
     private mutating func parse(argument: String, for currentFlag: Flag? = nil) throws -> Flag? {
         guard let flag = currentFlag else {
             guard let flag = Flag(rawValue: argument) else {
                 throw PlaygroundError.invalidFlag(argument)
             }
-
+            
             return flag
         }
-
+        
         switch flag {
         case .targetPath:
             targetPath = argument
@@ -114,7 +115,7 @@ struct Options {
             guard let parsedPlatform = Playground.Platform(rawValue: argument.lowercased()) else {
                 throw PlaygroundError.invalidPlatform(argument)
             }
-
+            
             platform = parsedPlatform
         case .dependencies:
             let paths = argument.components(separatedBy: ",")
@@ -123,7 +124,7 @@ struct Options {
                     guard path.hasSuffix(".xcodeproj") else {
                         throw PlaygroundError.invalidDependency(path)
                     }
-
+                    
                     return try Folder(path: path)
                 } catch {
                     throw PlaygroundError.invalidDependency(path)
@@ -138,7 +139,7 @@ struct Options {
             displayHelp = true
             return try parse(argument: argument)
         }
-
+        
         return nil
     }
 }
@@ -153,7 +154,7 @@ func displayHelp() {
     print("Options:")
     print("")
     print("📁  -t   Specify a target path where the playground should be created")
-    print("         Default: ~/Desktop/<Date>")
+    print("         Default: <Current directory>/<Date>")
     print("📱  -p   Which platform (iOS, macOS or tvOS) that the playground should run on")
     print("         Default: iOS")
     print("📦  -d   Specify any Xcode projects that you wish to add as dependencies")
@@ -169,50 +170,51 @@ func displayHelp() {
 
 do {
     let options = try Options()
-
+    
     guard !options.displayHelp else {
         displayHelp()
         exit(0)
     }
-
+    
     func openIfNeeded(path: String) throws {
         guard !options.forceOverwrite else {
             return
         }
-
+        
         guard (try? Folder(path: path)) != nil else {
             return
         }
-
+        
         try CommandLine.open(path: path)
         exit(0)
     }
-
+    
     if !options.dependencies.isEmpty {
         let workspace = Workspace(path: options.targetPath)
         try openIfNeeded(path: workspace.path)
-
+        
         let playground = workspace.addPlayground()
         playground.apply(options)
-
+        
         for dependency in options.dependencies {
             workspace.addProject(at: dependency.path)
         }
-
+        
         try workspace.generate()
-
+        
         print("✅  Generated Playground workspace at \(workspace.path)")
         try CommandLine.open(path: workspace.path)
     } else {
         let playground = Playground(path: options.targetPath)
         try openIfNeeded(path: playground.path)
-
+        
         playground.apply(options)
         try playground.generate()
-
+        
         print("✅  Generated Playground at \(playground.path)")
         try CommandLine.open(path: playground.path)
     }
 } catch {
     print("💥  An error occured: \(error)")
 }
+
